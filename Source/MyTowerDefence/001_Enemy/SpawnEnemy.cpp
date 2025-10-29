@@ -1,105 +1,139 @@
 #include "SpawnEnemy.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
+#include "001_Enemy/BaseEnemy.h"
 
-// Sets default values
+// 构造函数：初始化默认值
 ASpawnEnemy::ASpawnEnemy()
 {
-	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
-	PrimaryActorTick.bCanEverTick = true;
+    // 启用每帧Tick函数
+    PrimaryActorTick.bCanEverTick = true;
 
-	// 设置默认生成参数
-	SpawnInterval = 2.0f;
-	MaxEnemiesToSpawn = 10;
-	bAutoStartSpawning = true;
-	EnemiesSpawnedCount = 0;
-	bIsSpawning = false;
+    // 初始化生成间隔为2秒
+    SpawnInterval = 2.0f;
+
+    // 初始化最大生成敌人数为10
+    MaxEnemiesToSpawn = 10;
+
+    // 默认自动开始生成
+    bAutoStartSpawning = true;
+
+    // 初始化已生成敌人数为0
+    EnemiesSpawnedCount = 0;
+
+    // 初始化生成状态为未开始
+    bIsSpawning = false;
 }
 
+// 开始生成敌人
+// 设置计时器按间隔周期性地生成敌人
 void ASpawnEnemy::StartSpawning()
 {
-	if (bIsSpawning) return;
+    // 如果已经在生成中，则直接返回
+    if (bIsSpawning) return;
 
-	bIsSpawning = true;
-	EnemiesSpawnedCount = 0;
+    // 设置生成状态标志
+    bIsSpawning = true;
 
-	GetWorldTimerManager().SetTimer(SpawnTimerHandle, this, &ASpawnEnemy::SpawnEnemy, SpawnInterval, true);
+    // 重置已生成敌人计数
+    EnemiesSpawnedCount = 0;
 
-	UE_LOG(LogTemp, Warning, TEXT("Enemy spawning started with interval: %.2f seconds"), SpawnInterval);
+    // 设置生成计时器：每隔SpawnInterval秒调用一次SpawnEnemy函数
+    GetWorldTimerManager().SetTimer(SpawnTimerHandle, this, &ASpawnEnemy::SpawnEnemy, SpawnInterval, true);
 }
 
+// 停止生成敌人
+// 清除生成计时器并重置状态
 void ASpawnEnemy::StopSpawning()
 {
-	if (!bIsSpawning) return;
+    // 如果不在生成状态，则直接返回
+    if (!bIsSpawning) return;
 
-	bIsSpawning = false;
-	GetWorldTimerManager().ClearTimer(SpawnTimerHandle);
+    // 重置生成状态标志
+    bIsSpawning = false;
 
-	UE_LOG(LogTemp, Warning, TEXT("Enemy spawning stopped. Total enemies spawned: %d"), EnemiesSpawnedCount);
+    // 清除生成计时器
+    GetWorldTimerManager().ClearTimer(SpawnTimerHandle);
 }
 
+// 生成单个敌人实例
+// 创建敌人Actor并初始化其路径，触发生成事件
 void ASpawnEnemy::SpawnEnemy()
 {
-	if (EnemyClass && GetWorld())
-	{
-		FVector SpawnLocation = GetActorLocation();
-		FRotator SpawnRotation = GetActorRotation();
-		FActorSpawnParameters SpawnParams;
-		SpawnParams.Owner = this;
-		SpawnParams.Instigator = GetInstigator();
+    // 前置条件检查：确保敌人类别、世界上下文和样条组件都存在
+    if (!EnemyClass || !GetWorld() || !SplineActor)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[错误] : 敌人类别、世界上下文或样条组件不存在"));
+        return;
+    }
 
-		ABaseEnemy* SpawnedEnemy = GetWorld()->SpawnActor<ABaseEnemy>(EnemyClass, SpawnLocation, SpawnRotation, SpawnParams);
+    // 设置生成位置和旋转（使用生成器自身的位置和旋转）
+    FVector SpawnLocation = GetActorLocation();
+    FRotator SpawnRotation = GetActorRotation();
 
-		if (SpawnedEnemy)
-		{
-			// 改进：确保委托在设置路径前广播，这样蓝图可以立即处理移动逻辑
-			if (OnEnemySpawned.IsBound())
-			{
-				OnEnemySpawned.Broadcast(SpawnedEnemy);
-			}
+    // 配置Actor生成参数
+    FActorSpawnParameters SpawnParams;
+    SpawnParams.Owner = this;                    // 设置拥有者为当前生成器
+    SpawnParams.Instigator = GetInstigator();    // 设置触发者
 
-			// 设置敌人路径
-			SpawnedEnemy->InitializeEnemyPath(SplineActor);
+    // 在世界中生成敌人Actor
+    ABaseEnemy* SpawnedEnemy = GetWorld()->SpawnActor<ABaseEnemy>(EnemyClass, SpawnLocation, SpawnRotation, SpawnParams);
 
-			// 添加到已生成敌人数组
-			SpawnedEnemies.Add(SpawnedEnemy);
-			EnemiesSpawnedCount++;
+    // 检查敌人是否成功生成
+    if (SpawnedEnemy)
+    {
+        // 第一步：初始化敌人的移动路径
+        SpawnedEnemy->InitializeEnemyPath(SplineActor);
 
-			// 如果达到最大生成数量，停止生成
-			if (MaxEnemiesToSpawn > 0 && EnemiesSpawnedCount >= MaxEnemiesToSpawn)
-			{
-				StopSpawning();
-			}
-		}
-	}
+        // 第二步：广播敌人生成委托，通知其他系统有新敌人生成
+        if (OnEnemySpawned.IsBound())
+        {
+            OnEnemySpawned.Broadcast(SpawnedEnemy);
+        }
+
+        // 第三步：管理生成的敌人
+        SpawnedEnemies.Add(SpawnedEnemy);    // 添加到已生成敌人数组
+        EnemiesSpawnedCount++;               // 增加生成计数
+
+        // 检查是否达到最大生成数量限制
+        if (MaxEnemiesToSpawn > 0 && EnemiesSpawnedCount >= MaxEnemiesToSpawn)
+        {
+            // 达到最大数量，停止生成
+            UE_LOG(LogTemp, Warning, TEXT("[成功] 敌人：已达到最大生成数量 %d，停止生成。"), MaxEnemiesToSpawn);
+            StopSpawning();
+        }
+    }
 }
 
-// Called when the game starts or when spawned
+// 游戏开始时的初始化
 void ASpawnEnemy::BeginPlay()
 {
-	Super::BeginPlay();
+    Super::BeginPlay();
 
-	// 如果设置为自动开始，则在游戏开始时启动生成
-	if (bAutoStartSpawning)
-	{
-		StartSpawning();
-	}
+    // 如果设置了自动开始生成，则在游戏开始时启动生成器
+    if (bAutoStartSpawning)
+    {
+        StartSpawning();
+    }
 }
 
-// 改进：添加委托清理
+// 游戏结束时的清理
+// @param EndPlayReason - 游戏结束的原因
 void ASpawnEnemy::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-	// 停止生成计时器
-	StopSpawning();
+    // 停止生成敌人
+    StopSpawning();
 
-	// 清理委托绑定，防止悬空指针
-	OnEnemySpawned.Clear();
+    // 清空委托绑定，防止内存泄漏
+    OnEnemySpawned.Clear();
 
-	Super::EndPlay(EndPlayReason);
+    // 调用父类结束游戏处理
+    Super::EndPlay(EndPlayReason);
 }
 
-// Called every frame
+// 每帧更新函数
+// @param DeltaTime - 距离上一帧的时间间隔
 void ASpawnEnemy::Tick(float DeltaTime)
 {
-	Super::Tick(DeltaTime);
+    Super::Tick(DeltaTime);
 }

@@ -1,44 +1,84 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
-#include "001_Enemy/BaseEnemy.h"
 #include "BaseEnemy.h"
+#include "Components/SplineComponent.h"
 
-// 构造函数：设置默认值
+// 构造函数：初始化默认值
 ABaseEnemy::ABaseEnemy()
 {
-	// 设置此角色每帧调用Tick()，如果不需要可以提高性能关闭
-	PrimaryActorTick.bCanEverTick = true;
+    // 设置此角色每帧调用Tick()
+    PrimaryActorTick.bCanEverTick = true;
 
-	// 初始化敌人属性
-	Health = 100.0f; // 默认生命值100
+    // 初始化生命值为100
+    Health = 100.0f;
+
+    // 初始化路径指针为空
+    EnemyPath = nullptr;
 }
 
-// 游戏开始或生成时调用
+// 游戏开始时的初始化
 void ABaseEnemy::BeginPlay()
 {
-	Super::BeginPlay();
+    Super::BeginPlay();
 }
 
-// 每帧调用
+void ABaseEnemy::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    // 清空委托绑定，防止内存泄漏
+	OnEnemyPathInitialized.Clear();
+
+    // 调用父类结束游戏处理
+	Super::EndPlay(EndPlayReason);
+}
+
+// 每帧更新函数
+// @param DeltaTime - 距离上一帧的时间间隔
 void ABaseEnemy::Tick(float DeltaTime)
 {
-	Super::Tick(DeltaTime);
+    Super::Tick(DeltaTime);
 }
 
-// 绑定功能到输入（敌人通常由AI控制，此函数可能为空）
+// 设置玩家输入组件
+// @param PlayerInputComponent - 玩家输入组件指针
 void ABaseEnemy::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
-	Super::SetupPlayerInputComponent(PlayerInputComponent);
-	// 敌人通常不需要玩家输入，因此保持空实现
+    Super::SetupPlayerInputComponent(PlayerInputComponent);
 }
 
+// 初始化敌人移动路径
+// @param SplineActor - 包含样条组件的Actor引用
+// @return 成功返回样条组件指针，失败返回nullptr
 USplineComponent* ABaseEnemy::InitializeEnemyPath(AActor* SplineActor)
 {
-    
-	if (SplineActor)
-	{
-		EnemyPath = SplineActor->FindComponentByClass<USplineComponent>();
-		return EnemyPath;
-	}
-	return nullptr;
+    // 检查传入的Actor是否有效
+    if (SplineActor)
+    {
+        // 从Actor中查找样条组件
+        EnemyPath = SplineActor->FindComponentByClass<USplineComponent>();
+
+        // 检查是否成功找到样条组件
+        if (EnemyPath)
+        {
+            // 日志记录成功信息，显示样条点数
+            UE_LOG(LogTemp, Warning, TEXT("[成功] 敌人 %s: 路径 %s 成功初始化 "), *GetName(), *SplineActor->GetName());
+
+            // 检查委托是否已绑定，如果是则广播路径初始化完成事件
+            if (OnEnemyPathInitialized.IsBound())
+            {
+                OnEnemyPathInitialized.Broadcast(EnemyPath);
+            }
+        }
+        else
+        {
+            // 日志记录错误：未找到样条组件
+            UE_LOG(LogTemp, Error, TEXT("[错误] 敌人 %s: 未找到样条组件"), *GetName());
+        }
+
+        // 返回样条组件指针（可能为nullptr）
+        return EnemyPath;
+    }
+
+    // 日志记录错误：传入的Actor为空
+    UE_LOG(LogTemp, Error, TEXT("[错误] 敌人 %s: SplineActor为空"), *GetName());
+
+    // 返回空指针表示初始化失败
+    return nullptr;
 }
