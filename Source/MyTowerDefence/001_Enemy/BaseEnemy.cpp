@@ -7,8 +7,9 @@ ABaseEnemy::ABaseEnemy()
     // 设置此角色每帧调用Tick()
     PrimaryActorTick.bCanEverTick = true;
 
-    // 初始化生命值为100
-    Health = 100.0f;
+	EnemyDataTable = nullptr;
+
+	EnemyRowName = NAME_None;
 
     // 初始化路径指针为空
     EnemyPath = nullptr;
@@ -18,6 +19,11 @@ ABaseEnemy::ABaseEnemy()
 void ABaseEnemy::BeginPlay()
 {
     Super::BeginPlay();
+
+    if (EnemyDataTable && !EnemyRowName.IsNone())
+    {
+        InitializeEnemyFromDataTable();
+    }
 }
 
 void ABaseEnemy::EndPlay(const EEndPlayReason::Type EndPlayReason)
@@ -81,4 +87,47 @@ USplineComponent* ABaseEnemy::InitializeEnemyPath(AActor* SplineActor)
 
     // 返回空指针表示初始化失败
     return nullptr;
+}
+
+bool ABaseEnemy::InitializeEnemyFromDataTable()
+{
+    if (!EnemyDataTable)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[错误] 敌人数据表为空"));
+        return false;
+    }
+    if (EnemyRowName.IsNone())
+    {
+        UE_LOG(LogTemp, Error, TEXT("[错误] 敌人命名未设置"));
+        return false;
+    }
+    LoadedEnemyData = EnemyDataTable->FindRow<FEnemyData>(EnemyRowName, TEXT("查找敌人数据"));
+
+    if (!LoadedEnemyData)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[错误] 未在数据表中找到敌人数据: %s"), *EnemyRowName.ToString());
+        return false;
+    }
+
+    // 应用数据表格中的属性
+    if (LoadedEnemyData->SkeletalMesh)
+    {
+        GetMesh()->SetSkeletalMesh(LoadedEnemyData->SkeletalMesh);
+    }
+
+    if (GetCharacterMovement())
+    {
+        GetCharacterMovement()->MaxWalkSpeed = LoadedEnemyData->MoveSpeed;
+    }
+
+    // 设置生命值
+    Health = LoadedEnemyData->Health;
+
+    // 设置动画蓝图
+    if (LoadedEnemyData->AnimClass)
+    {
+        GetMesh()->SetAnimInstanceClass(LoadedEnemyData->AnimClass);
+    }
+    UE_LOG(LogTemp, Log, TEXT("[成功] 敌人已在从表格数据初始化 %s"), *EnemyRowName.ToString());
+    return true;
 }
