@@ -73,7 +73,6 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy Data")
     float Cost;
 
-
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy Data")
     class UDataTable* EnemyDataTable;
 
@@ -113,4 +112,7 @@ public:
     
     UFUNCTION(BlueprintCallable, Category = "Enemy Data")
     bool InitializeEnemyFromDataTable();
+
+	UFUNCTION(BlueprintCallable, Category = "Enemy State")
+    bool IsDead() const { return Health <= 0.0f; }
 };

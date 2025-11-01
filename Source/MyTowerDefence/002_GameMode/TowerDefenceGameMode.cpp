@@ -5,4 +5,29 @@
 
 ATowerDefenceGameMode::ATowerDefenceGameMode()
 {
+	Money = 100; // 初始金钱数
+}
+
+int32 ATowerDefenceGameMode::GetMoney() const
+{
+    return Money;
+}
+
+void ATowerDefenceGameMode::AddMoney(int32 Amount)
+{
+    for(auto & Enemy : SpawnedEnemies)
+    {
+        if(Enemy)
+        {
+            if (Enemy->IsDead())
+            {
+				Money += Enemy->Cost;
+            }  
+        }
+	}
+}
+
+bool ATowerDefenceGameMode::SpendMoney(int32 Amount)
+{
+    return false;
 }

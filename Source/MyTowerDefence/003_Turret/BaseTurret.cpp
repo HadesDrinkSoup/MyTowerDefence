@@ -1,47 +1,40 @@
-#include "003_Turret/BaseTurret.h"
+#include "BaseTurret.h"
 #include "Components/StaticMeshComponent.h"
 #include "NiagaraComponent.h"
 #include "Engine/StaticMesh.h"
 
-// Sets default values
 ABaseTurret::ABaseTurret()
 {
-	// Set this actor to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 
-	// 创建根组件
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
 
-	// 创建并设置炮塔网格体组件
 	TurretMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("TurretMesh"));
 	TurretMesh->SetupAttachment(RootComponent);
 
-	// 创建 Niagara 效果组件
 	GroundEffectComponent = CreateDefaultSubobject<UNiagaraComponent>(TEXT("GroundEffect"));
 	GroundEffectComponent->SetupAttachment(RootComponent);
 
 	// 初始化默认值
-	Level = 1;
-	UpgradeCost = 30;
-	Damage = 10.0f;
-	AttackRange = 500.0f;
-	AttackSpeed = 1.0f;
+	CurrentLevel = 0;
+	UpgradeCost = 0;
+	Damage = 0.0f;
+	AttackRange = 0.0f;
+	AttackSpeed = 0.0f;
 	TurretDataTable = nullptr;
+	LoadedTurretData = nullptr;
 }
 
-// Called when the game starts or when spawned
 void ABaseTurret::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// 自动从数据表格初始化
 	if (TurretDataTable && !TurretRowName.IsNone())
 	{
 		InitializeTurretFromDataTable();
 	}
 }
 
-// Called every frame
 void ABaseTurret::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
@@ -68,26 +61,75 @@ bool ABaseTurret::InitializeTurretFromDataTable()
 		return false;
 	}
 
+	// 验证等级是否在有效范围内
+	const int32 DataIndex = CurrentLevel;
+	if (!ValidateDataTableIndex(DataIndex))
+	{
+		UE_LOG(LogTemp, Error, TEXT("[错误] 等级 %d 超出数据表范围"), CurrentLevel);
+		return false;
+	}
+
 	// 应用数据表格中的属性
-	Level = LoadedTurretData->Level;
-	UpgradeCost = LoadedTurretData->UpgradeCost;
-	Damage = LoadedTurretData->Damage;
-	AttackRange = LoadedTurretData->AttackRange;
-	AttackSpeed = LoadedTurretData->AttackSpeed;
+	UpgradeCost = LoadedTurretData->UpgradeCost[DataIndex];
+	Damage = LoadedTurretData->Damage[DataIndex];
+	AttackRange = LoadedTurretData->AttackRange[DataIndex];
+	AttackSpeed = LoadedTurretData->AttackSpeed[DataIndex];
 
 	// 设置炮塔网格体
-	if (LoadedTurretData->TurretMesh && TurretMesh)
+	if (LoadedTurretData->TurretMesh.IsValidIndex(DataIndex) && LoadedTurretData->TurretMesh[DataIndex] && TurretMesh) 
 	{
-		TurretMesh->SetStaticMesh(LoadedTurretData->TurretMesh);
+		TurretMesh->SetStaticMesh(LoadedTurretData->TurretMesh[DataIndex]);
 	}
 
 	// 设置 Niagara 效果
-	if (LoadedTurretData->GroundEffect && GroundEffectComponent)
+	if (LoadedTurretData->GroundEffect.IsValidIndex(DataIndex) && LoadedTurretData->GroundEffect[DataIndex] && GroundEffectComponent)
 	{
-		GroundEffectComponent->SetAsset(LoadedTurretData->GroundEffect);
-		GroundEffectComponent->Activate(); // 激活效果
+		GroundEffectComponent->SetAsset(LoadedTurretData->GroundEffect[DataIndex]);
+		GroundEffectComponent->Activate();
+	}
+	UE_LOG(LogTemp, Log, TEXT("[成功] 炮塔已从表格数据加载: %s, 等级: %d"), *TurretRowName.ToString(), CurrentLevel);
+	return true;
+}
+
+bool ABaseTurret::UpgradeTurret()
+{
+	if (!LoadedTurretData)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[警告] 没有加载的炮塔数据"));
+		return false;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("[成功] 炮塔已从表格数据初始化: %s"), *TurretRowName.ToString());
-	return true;
+	const int32 NextLevel = CurrentLevel + 1;
+
+	if (!ValidateDataTableIndex(NextLevel))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[警告] 已达到最大等级"));
+		return false;
+	}
+
+	CurrentLevel = NextLevel;
+	return InitializeTurretFromDataTable();
+}
+
+int32 ABaseTurret::GetSellCost() const
+{
+	if (!LoadedTurretData || !LoadedTurretData->SellCost.IsValidIndex(CurrentLevel))
+	{
+		return 0;
+	}
+	return LoadedTurretData->SellCost[CurrentLevel];
+}
+
+bool ABaseTurret::ValidateDataTableIndex(int32 Index) const
+{
+	if (!LoadedTurretData)
+		return false;
+
+	return Index >= 0 &&
+		Index < LoadedTurretData->UpgradeCost.Num() &&
+		Index < LoadedTurretData->Damage.Num() &&
+		Index < LoadedTurretData->AttackRange.Num() &&
+		Index < LoadedTurretData->AttackSpeed.Num() &&
+		Index < LoadedTurretData->TurretMesh.Num() &&
+		Index < LoadedTurretData->GroundEffect.Num();
 }

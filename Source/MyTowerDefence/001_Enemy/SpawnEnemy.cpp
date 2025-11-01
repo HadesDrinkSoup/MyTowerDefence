@@ -92,7 +92,7 @@ void ASpawnEnemy::SpawnEnemy()
         }
 
         // 第三步：管理生成的敌人
-        SpawnedEnemies.Add(SpawnedEnemy);    // 添加到已生成敌人数组
+		GameModeRef->SpawnedEnemies.Add(SpawnedEnemy);  // 添加到游戏模式的已生成敌人数组
         EnemiesSpawnedCount++;               // 增加生成计数
 
         // 检查是否达到最大生成数量限制

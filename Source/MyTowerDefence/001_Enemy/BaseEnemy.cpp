@@ -64,7 +64,7 @@ USplineComponent* ABaseEnemy::InitializeEnemyPath(AActor* SplineActor)
         if (EnemyPath)
         {
             // 日志记录成功信息，显示样条点数
-            UE_LOG(LogTemp, Warning, TEXT("[成功] 敌人 %s: 路径 %s 成功初始化 "), *GetName(), *SplineActor->GetName());
+            UE_LOG(LogTemp, Log, TEXT("[成功] 敌人 %s: 路径 %s 成功初始化 "), *GetName(), *SplineActor->GetName());
 
             // 检查委托是否已绑定，如果是则广播路径初始化完成事件
             if (OnEnemyPathInitialized.IsBound())

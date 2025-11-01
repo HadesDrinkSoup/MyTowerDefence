@@ -1,5 +1,3 @@
-// Fill out your copyright notice in the Description page of Project Settings.
-
 #pragma once
 
 #include "CoreMinimal.h"
@@ -10,31 +8,34 @@
 #include "BaseTurret.generated.h"
 
 USTRUCT(BlueprintType)
-struct FTurretData : public FTableRowBase  // 修正拼写错误：FTurretDate -> FTurretData
+struct FTurretData : public FTableRowBase
 {
 	GENERATED_BODY()
 
 public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	int32 Level;
+	int32 MaxLevel;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	int32 UpgradeCost;
+	TArray<int32> SellCost;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float Damage;
+	TArray<int32> UpgradeCost;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float AttackRange;
+	TArray<float> Damage; 
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	float AttackSpeed;
+	TArray<float> AttackRange;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	UStaticMesh* TurretMesh;
+	TArray<float> AttackSpeed;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	UNiagaraSystem* GroundEffect;
+	TArray<UStaticMesh*> TurretMesh;  // 使用指针类型
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<UNiagaraSystem*> GroundEffect;  // 使用指针类型
 };
 
 UCLASS()
@@ -43,11 +44,17 @@ class MYTOWERDEFENCE_API ABaseTurret : public AActor
 	GENERATED_BODY()
 
 public:
-	// Sets default values for this actor's properties
 	ABaseTurret();
 
+protected:
+	virtual void BeginPlay() override;
+
+public:
+	virtual void Tick(float DeltaTime) override;
+
+	// 炮塔属性
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TurretData")
-	int32 Level;
+	int32 CurrentLevel;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TurretData")
 	int32 UpgradeCost;
@@ -61,32 +68,34 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TurretData")
 	float AttackSpeed;
 
-	// 炮塔网格体组件
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "TurretMesh")
+	// 组件
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	class UStaticMeshComponent* TurretMesh;
 
-	// 地面效果 Niagara 组件
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "TurretEffect")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	class UNiagaraComponent* GroundEffectComponent;
 
+	// 数据表引用
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TurretData")
 	class UDataTable* TurretDataTable;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TurretData")
-	FName TurretRowName;  // 更明确的命名
+	FName TurretRowName;
+
+public:
+	// 炮塔功能函数
+	UFUNCTION(BlueprintCallable, Category = "Turret")
+	bool InitializeTurretFromDataTable();
+
+	UFUNCTION(BlueprintCallable, Category = "Turret")
+	bool UpgradeTurret();
+
+	UFUNCTION(BlueprintCallable, Category = "Turret")
+	int32 GetSellCost() const;
 
 private:
-	FTurretData* LoadedTurretData;
+	const FTurretData* LoadedTurretData;
 
-protected:
-	// Called when the game starts or when spawned
-	virtual void BeginPlay() override;
-
-public:
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
-
-public:
-	UFUNCTION(BlueprintCallable, Category = "TurretData")
-	bool InitializeTurretFromDataTable();
+	// 辅助函数
+	bool ValidateDataTableIndex(int32 Index) const;
 };

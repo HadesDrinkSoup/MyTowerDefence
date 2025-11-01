@@ -5,6 +5,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "001_Enemy/BaseEnemy.h"
+#include "002_GameMode/TowerDefenceGameMode.h"
 #include "SpawnEnemy.generated.h"
 
 // 敌人生成委托声明
@@ -24,9 +25,7 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpawnEnemy")
     TSubclassOf<ABaseEnemy> EnemyClass;
 
-    // 已生成敌人的数组，存储所有生成的敌人实例
-    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpawnEnemy")
-    TArray<ABaseEnemy*> SpawnedEnemies;
+	ATowerDefenceGameMode* GameModeRef;
 
     // ========== 生成参数 ==========
 

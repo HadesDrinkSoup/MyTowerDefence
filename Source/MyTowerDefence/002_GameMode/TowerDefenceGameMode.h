@@ -3,8 +3,8 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Components/SplineComponent.h"
-#include <Kismet/GameplayStatics.h>
+#include "001_Enemy/BaseEnemy.h"
+#include "003_Turret/BaseTurret.h"
 #include "GameFramework/GameModeBase.h"
 #include "TowerDefenceGameMode.generated.h"
 
@@ -20,6 +20,21 @@ public:
 	ATowerDefenceGameMode();
 
 public:
-	
+	// 已生成敌人的数组，存储所有生成的敌人实例
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpawnedEnemies")
+	TArray<ABaseEnemy*> SpawnedEnemies;
+
+
+
+private:
+	int32 Money;
+
+public:
+	UFUNCTION(BlueprintCallable, Category = "GameMode")
+	int32 GetMoney() const;
+	UFUNCTION(BlueprintCallable, Category = "GameMode")
+	void AddMoney(int32 Amount);
+	UFUNCTION(BlueprintCallable, Category = "GameMode")
+	bool SpendMoney(int32 Amount);
 
 };
