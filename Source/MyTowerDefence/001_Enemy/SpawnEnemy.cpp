@@ -24,6 +24,38 @@ ASpawnEnemy::ASpawnEnemy()
     // 初始化生成状态为未开始
     bIsSpawning = false;
 }
+// 游戏开始时的初始化
+void ASpawnEnemy::BeginPlay()
+{
+    Super::BeginPlay();
+    GameModeRef = Cast<ATowerDefenceGameMode>(GetWorld()->GetAuthGameMode());
+    // 如果设置了自动开始生成，则在游戏开始时启动生成器
+    if (bAutoStartSpawning)
+    {
+        StartSpawning();
+    }
+}
+
+// 游戏结束时的清理
+// @param EndPlayReason - 游戏结束的原因
+void ASpawnEnemy::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+    // 停止生成敌人
+    StopSpawning();
+
+    // 清空委托绑定，防止内存泄漏
+    OnEnemySpawned.Clear();
+
+    // 调用父类结束游戏处理
+    Super::EndPlay(EndPlayReason);
+}
+
+// 每帧更新函数
+// @param DeltaTime - 距离上一帧的时间间隔
+void ASpawnEnemy::Tick(float DeltaTime)
+{
+    Super::Tick(DeltaTime);
+}
 
 // 开始生成敌人
 // 设置计时器按间隔周期性地生成敌人
@@ -93,6 +125,7 @@ void ASpawnEnemy::SpawnEnemy()
 
         // 第三步：管理生成的敌人
 		GameModeRef->SpawnedEnemies.Add(SpawnedEnemy);  // 添加到游戏模式的已生成敌人数组
+        SpawnedEnemy->OnEnemyDead.AddDynamic(GameModeRef, &ATowerDefenceGameMode::HandleEnemyDeath);// 绑定敌人死亡事件到游戏模式处理函数
         EnemiesSpawnedCount++;               // 增加生成计数
 
         // 检查是否达到最大生成数量限制
@@ -103,37 +136,4 @@ void ASpawnEnemy::SpawnEnemy()
             StopSpawning();
         }
     }
-}
-
-// 游戏开始时的初始化
-void ASpawnEnemy::BeginPlay()
-{
-    Super::BeginPlay();
-
-    // 如果设置了自动开始生成，则在游戏开始时启动生成器
-    if (bAutoStartSpawning)
-    {
-        StartSpawning();
-    }
-}
-
-// 游戏结束时的清理
-// @param EndPlayReason - 游戏结束的原因
-void ASpawnEnemy::EndPlay(const EEndPlayReason::Type EndPlayReason)
-{
-    // 停止生成敌人
-    StopSpawning();
-
-    // 清空委托绑定，防止内存泄漏
-    OnEnemySpawned.Clear();
-
-    // 调用父类结束游戏处理
-    Super::EndPlay(EndPlayReason);
-}
-
-// 每帧更新函数
-// @param DeltaTime - 距离上一帧的时间间隔
-void ASpawnEnemy::Tick(float DeltaTime)
-{
-    Super::Tick(DeltaTime);
 }

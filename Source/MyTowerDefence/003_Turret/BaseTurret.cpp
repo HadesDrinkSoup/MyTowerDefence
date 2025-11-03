@@ -28,10 +28,12 @@ ABaseTurret::ABaseTurret()
 void ABaseTurret::BeginPlay()
 {
 	Super::BeginPlay();
-
-	if (TurretDataTable && !TurretRowName.IsNone())
+	GameModeRef = Cast<ATowerDefenceGameMode>(GetWorld()->GetAuthGameMode());
+	TurretsName = GetAllRowNames(TurretDataTable);
+	// 如果有设置炮塔名称，则初始化
+	if (TurretDataTable && !TurretName.IsNone())
 	{
-		InitializeTurretFromDataTable();
+		InitializeTurretFromDataTable(TurretName);
 	}
 }
 
@@ -40,7 +42,7 @@ void ABaseTurret::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
-bool ABaseTurret::InitializeTurretFromDataTable()
+bool ABaseTurret::InitializeTurretFromDataTable(FName NewTurretName)
 {
 	if (!TurretDataTable)
 	{
@@ -48,16 +50,19 @@ bool ABaseTurret::InitializeTurretFromDataTable()
 		return false;
 	}
 
-	if (TurretRowName.IsNone())
+	if (NewTurretName.IsNone())
 	{
 		UE_LOG(LogTemp, Error, TEXT("[错误] 炮塔行名称未设置"));
 		return false;
 	}
 
-	LoadedTurretData = TurretDataTable->FindRow<FTurretData>(TurretRowName, TEXT("查找炮塔数据"));
+	// 更新炮塔名称
+	TurretName = NewTurretName;
+
+	LoadedTurretData = TurretDataTable->FindRow<FTurretData>(TurretName, TEXT("查找炮塔数据"));
 	if (!LoadedTurretData)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[错误] 未在数据表中找到炮塔数据: %s"), *TurretRowName.ToString());
+		UE_LOG(LogTemp, Error, TEXT("[错误] 未在数据表中找到炮塔数据: %s"), *TurretName.ToString());
 		return false;
 	}
 
@@ -76,7 +81,7 @@ bool ABaseTurret::InitializeTurretFromDataTable()
 	AttackSpeed = LoadedTurretData->AttackSpeed[DataIndex];
 
 	// 设置炮塔网格体
-	if (LoadedTurretData->TurretMesh.IsValidIndex(DataIndex) && LoadedTurretData->TurretMesh[DataIndex] && TurretMesh) 
+	if (LoadedTurretData->TurretMesh.IsValidIndex(DataIndex) && LoadedTurretData->TurretMesh[DataIndex] && TurretMesh)
 	{
 		TurretMesh->SetStaticMesh(LoadedTurretData->TurretMesh[DataIndex]);
 	}
@@ -87,7 +92,8 @@ bool ABaseTurret::InitializeTurretFromDataTable()
 		GroundEffectComponent->SetAsset(LoadedTurretData->GroundEffect[DataIndex]);
 		GroundEffectComponent->Activate();
 	}
-	UE_LOG(LogTemp, Log, TEXT("[成功] 炮塔已从表格数据加载: %s, 等级: %d"), *TurretRowName.ToString(), CurrentLevel);
+
+	UE_LOG(LogTemp, Log, TEXT("[成功] 炮塔已从表格数据加载: %s, 等级: %d"), *TurretName.ToString(), CurrentLevel);
 	return true;
 }
 
@@ -95,36 +101,66 @@ bool ABaseTurret::UpgradeTurret()
 {
 	if (!LoadedTurretData)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[警告] 没有加载的炮塔数据"));
+		UE_LOG(LogTemp, Error, TEXT("[错误] 没有加载的炮塔数据"));
 		return false;
 	}
 
 	const int32 NextLevel = CurrentLevel + 1;
 
-	if (!ValidateDataTableIndex(NextLevel))
+	if (ValidateDataTableIndex(NextLevel))
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[警告] 已达到最大等级"));
+		if (GameModeRef->GetMoney() < LoadedTurretData->UpgradeCost[NextLevel])
+		{
+			UE_LOG(LogTemp, Warning, TEXT("[警告] 金币不足无法升级"));
+			return false;
+		}
+		GameModeRef->SpendMoney(LoadedTurretData->UpgradeCost[NextLevel]);
+		CurrentLevel = NextLevel;
+		return InitializeTurretFromDataTable(TurretName);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[警告] 已达到最大等级，无法升级"));
 		return false;
 	}
-
-	CurrentLevel = NextLevel;
-	return InitializeTurretFromDataTable();
 }
 
-int32 ABaseTurret::GetSellCost() const
+void ABaseTurret::SellOut()
 {
-	if (!LoadedTurretData || !LoadedTurretData->SellCost.IsValidIndex(CurrentLevel))
+	if (LoadedTurretData && LoadedTurretData->SellCost.IsValidIndex(CurrentLevel) && CurrentLevel > 0)
 	{
-		return 0;
+		int32 Amount = LoadedTurretData->SellCost[CurrentLevel];
+		GameModeRef->AddMoney(Amount);
+		UE_LOG(LogTemp, Log, TEXT("出售成功获得金币 %d , 当前金币 %d "), Amount, GameModeRef->GetMoney());
+		CurrentLevel = 0;
+		TurretMesh->SetStaticMesh(nullptr);
+		InitializeTurretFromDataTable(TurretName);
 	}
-	return LoadedTurretData->SellCost[CurrentLevel];
+}
+
+TArray<FName> ABaseTurret::GetAllRowNames(UDataTable* Data) const
+{
+	TArray<FName> RowNames;
+	if (!Data)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[错误] 数据表为空"));
+	}
+	const TMap<FName, uint8*>& RowMap = Data->GetRowMap();
+	for(const auto Row : RowMap)
+	{
+		RowNames.Add(Row.Key);
+	}
+	return RowNames;
 }
 
 bool ABaseTurret::ValidateDataTableIndex(int32 Index) const
 {
 	if (!LoadedTurretData)
+	{
+		UE_LOG(LogTemp, Error, TEXT("[错误] 没有加载的炮塔数据"));
 		return false;
-
+	}
+		
 	return Index >= 0 &&
 		Index < LoadedTurretData->UpgradeCost.Num() &&
 		Index < LoadedTurretData->Damage.Num() &&

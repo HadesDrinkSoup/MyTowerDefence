@@ -21,13 +21,10 @@ public:
     // 构造函数
     ASpawnEnemy();
 
+public:
     // 要生成的敌人类别，可在编辑器和蓝图中设置
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SpawnEnemy")
     TSubclassOf<ABaseEnemy> EnemyClass;
-
-	ATowerDefenceGameMode* GameModeRef;
-
-    // ========== 生成参数 ==========
 
     // 生成敌人的时间间隔（秒）
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawning")
@@ -47,6 +44,8 @@ public:
     FOnEnemySpawned OnEnemySpawned;
 
 protected:
+    ATowerDefenceGameMode* GameModeRef;
+
     // 样条组件引用，用于为生成的敌人设置移动路径
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy Path")
     AActor* SplineActor;
@@ -62,6 +61,17 @@ protected:
     // 生成计时器句柄，用于控制间隔生成
     FTimerHandle SpawnTimerHandle;
 
+protected:
+    // 游戏开始时调用
+    virtual void BeginPlay() override;
+
+    // 游戏结束时调用，清理资源
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+public:
+    // 每帧更新函数
+    virtual void Tick(float DeltaTime) override;
+
 public:
     // 开始生成敌人
     UFUNCTION(BlueprintCallable, Category = "Spawning")
@@ -74,15 +84,4 @@ public:
     // 生成单个敌人实例
     UFUNCTION(BlueprintCallable, Category = "SpawnEnemy")
     void SpawnEnemy();
-
-protected:
-    // 游戏开始时调用
-    virtual void BeginPlay() override;
-
-    // 游戏结束时调用，清理资源
-    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
-
-public:
-    // 每帧更新函数
-    virtual void Tick(float DeltaTime) override;
 };

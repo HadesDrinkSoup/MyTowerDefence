@@ -11,10 +11,6 @@
 #include <Components/SplineComponent.h>
 #include "BaseEnemy.generated.h"
 
-// 声明路径初始化完成的委托
-// 当敌人路径初始化完成时广播，传递生成的路径组件
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEnemyPathInitialized, USplineComponent*, EnemyPath);
-
 UENUM(BlueprintType)
 enum class EEnemyType : uint8
 {
@@ -54,6 +50,13 @@ public:
     EEnemyType EnemyType;
 };
 
+// 声明路径初始化完成的委托
+// 当敌人路径初始化完成时广播，传递生成的路径组件
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEnemyPathInitialized, USplineComponent*, EnemyPath);
+
+// 声明敌人死亡的委托
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnEnemyDead, ABaseEnemy*, IsDeadEnemy);
+
 UCLASS()
 class MYTOWERDEFENCE_API ABaseEnemy : public ACharacter
 {
@@ -64,14 +67,13 @@ public:
     ABaseEnemy();
 
 public:
-
     // 生命值
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy Data")
     float Health;
 
     // 价值
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy Data")
-    float Cost;
+    int32 Cost;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Enemy Data")
     class UDataTable* EnemyDataTable;
@@ -88,8 +90,12 @@ public:
     UPROPERTY(BlueprintAssignable, Category = "Enemy Events")
     FOnEnemyPathInitialized OnEnemyPathInitialized;
 
+	FOnEnemyDead OnEnemyDead;
+
 private:
-    FEnemyData* LoadedEnemyData;
+    const FEnemyData* LoadedEnemyData;
+
+	bool bIsDead;
 
 protected:
     // 游戏开始时调用的函数
@@ -113,6 +119,9 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Enemy Data")
     bool InitializeEnemyFromDataTable();
 
+    UFUNCTION(BlueprintCallable, Category = "Enemy State")
+    void TakeDamage(float DamageAmount);
+
 	UFUNCTION(BlueprintCallable, Category = "Enemy State")
-    bool IsDead() const { return Health <= 0.0f; }
+    bool GetIsDead();
 };

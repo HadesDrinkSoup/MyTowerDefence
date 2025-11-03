@@ -13,13 +13,15 @@ ABaseEnemy::ABaseEnemy()
 
     // 初始化路径指针为空
     EnemyPath = nullptr;
+    
+	Health = 10.0f;
+	bIsDead = false;
 }
 
 // 游戏开始时的初始化
 void ABaseEnemy::BeginPlay()
 {
     Super::BeginPlay();
-
     if (EnemyDataTable && !EnemyRowName.IsNone())
     {
         InitializeEnemyFromDataTable();
@@ -30,7 +32,7 @@ void ABaseEnemy::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     // 清空委托绑定，防止内存泄漏
 	OnEnemyPathInitialized.Clear();
-
+	OnEnemyDead.Clear();
     // 调用父类结束游戏处理
 	Super::EndPlay(EndPlayReason);
 }
@@ -123,6 +125,8 @@ bool ABaseEnemy::InitializeEnemyFromDataTable()
     // 设置生命值
     Health = LoadedEnemyData->Health;
 
+    Cost = LoadedEnemyData->Cost;
+
     // 设置动画蓝图
     if (LoadedEnemyData->AnimClass)
     {
@@ -130,4 +134,29 @@ bool ABaseEnemy::InitializeEnemyFromDataTable()
     }
     UE_LOG(LogTemp, Log, TEXT("[成功] 敌人已在从表格数据初始化 %s"), *EnemyRowName.ToString());
     return true;
+}
+
+void ABaseEnemy::TakeDamage(float DamageAmount)
+{
+    Health -= DamageAmount;
+    if(Health <= 0.0f && !bIsDead)
+    {
+		UE_LOG(LogTemp, Log, TEXT("敌人 %s 已死亡"), *GetName());
+        bIsDead = true;
+        if(OnEnemyDead.IsBound())
+        {
+            OnEnemyDead.Broadcast(this);
+        }
+        if (GetCharacterMovement())
+        {
+            GetCharacterMovement()->StopMovementImmediately();
+            GetCharacterMovement()->DisableMovement();
+        }
+		SetLifeSpan(2.0f); // 2秒后销毁敌人
+	}
+}
+
+bool ABaseEnemy::GetIsDead()
+{
+    return bIsDead;
 }

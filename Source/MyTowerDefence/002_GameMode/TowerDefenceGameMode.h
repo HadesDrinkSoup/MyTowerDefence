@@ -4,7 +4,6 @@
 
 #include "CoreMinimal.h"
 #include "001_Enemy/BaseEnemy.h"
-#include "003_Turret/BaseTurret.h"
 #include "GameFramework/GameModeBase.h"
 #include "TowerDefenceGameMode.generated.h"
 
@@ -24,8 +23,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpawnedEnemies")
 	TArray<ABaseEnemy*> SpawnedEnemies;
 
-
-
 private:
 	int32 Money;
 
@@ -37,4 +34,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "GameMode")
 	bool SpendMoney(int32 Amount);
 
+	UFUNCTION(BlueprintCallable, Category = "GameMode")
+	void HandleEnemyDeath(ABaseEnemy* DeadEnemy);
 };
