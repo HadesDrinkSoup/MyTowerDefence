@@ -1,7 +1,4 @@
 #include "BaseTurret.h"
-#include "Components/StaticMeshComponent.h"
-#include "NiagaraComponent.h"
-#include "Engine/StaticMesh.h"
 
 ABaseTurret::ABaseTurret()
 {
@@ -16,24 +13,68 @@ ABaseTurret::ABaseTurret()
 	GroundEffectComponent->SetupAttachment(RootComponent);
 
 	// 初始化默认值
-	CurrentLevel = 0;
+	MaxLevel = 1;
+	CurrentLevel = 1;
 	UpgradeCost = 0;
+	SellCost = 0;
 	Damage = 0.0f;
 	AttackRange = 0.0f;
 	AttackSpeed = 0.0f;
-	TurretDataTable = nullptr;
-	LoadedTurretData = nullptr;
+
+	// 初始化指针
+	GameModeRef = nullptr;
+	TurretDataTableManager = nullptr;
 }
 
 void ABaseTurret::BeginPlay()
 {
 	Super::BeginPlay();
+
+	UE_LOG(LogTemp, Log, TEXT("ABaseTurret::BeginPlay - 开始初始化"));
+
+	// 使用延迟初始化确保所有依赖项都已准备好
+	GetWorld()->GetTimerManager().SetTimer(InitializeTimerHandle, this, &ABaseTurret::DelayedInitialize, 0.1f, false);
+}
+
+void ABaseTurret::DelayedInitialize()
+{
+	UE_LOG(LogTemp, Log, TEXT("ABaseTurret::DelayedInitialize - 执行延迟初始化"));
+
+	// 获取游戏模式引用
 	GameModeRef = Cast<ATowerDefenceGameMode>(GetWorld()->GetAuthGameMode());
-	TurretsName = GetAllRowNames(TurretDataTable);
-	// 如果有设置炮塔名称，则初始化
-	if (TurretDataTable && !TurretName.IsNone())
+
+	if (GameModeRef)
 	{
-		InitializeTurretFromDataTable(TurretName);
+		UE_LOG(LogTemp, Log, TEXT("游戏模式引用获取成功: %s"), *GameModeRef->GetName());
+
+		// 获取数据表管理器
+		TurretDataTableManager = GameModeRef->TurretDataTableManager;
+
+		if (TurretDataTableManager)
+		{
+			UE_LOG(LogTemp, Log, TEXT("数据表管理器获取成功"));
+		}
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("[错误] 数据表管理器为空"));
+		}
+
+		// 验证关键引用
+		if (ValidateCriticalRef())
+		{
+			if (TurretTypeDataTable)
+			{
+				UE_LOG(LogTemp, Log, TEXT("[信息] 炮塔类型数据表初始化成功"));;
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("[警告] 缺少炮塔类型名称或数据表"));
+			}
+		}
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("[错误] 延迟初始化后游戏模式引用仍然为空"));
 	}
 }
 
@@ -42,130 +83,127 @@ void ABaseTurret::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 }
 
-bool ABaseTurret::InitializeTurretFromDataTable(FName NewTurretName)
+// 懒加载获取游戏模式引用
+ATowerDefenceGameMode* ABaseTurret::GetGameModeRef() const
 {
-	if (!TurretDataTable)
+	// 检查缓存
+	if (!GameModeRef)
 	{
-		UE_LOG(LogTemp, Error, TEXT("[错误] 炮塔数据表为空"));
-		return false;
-	}
+		// 使用const_cast因为这是在const方法中
+		ABaseTurret* ThisRef = const_cast<ABaseTurret*>(this);
+		ThisRef->GameModeRef = Cast<ATowerDefenceGameMode>(GetWorld()->GetAuthGameMode());
 
-	if (NewTurretName.IsNone())
-	{
-		UE_LOG(LogTemp, Error, TEXT("[错误] 炮塔行名称未设置"));
-		return false;
-	}
-
-	// 更新炮塔名称
-	TurretName = NewTurretName;
-
-	LoadedTurretData = TurretDataTable->FindRow<FTurretData>(TurretName, TEXT("查找炮塔数据"));
-	if (!LoadedTurretData)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[错误] 未在数据表中找到炮塔数据: %s"), *TurretName.ToString());
-		return false;
-	}
-
-	// 验证等级是否在有效范围内
-	const int32 DataIndex = CurrentLevel;
-	if (!ValidateDataTableIndex(DataIndex))
-	{
-		UE_LOG(LogTemp, Error, TEXT("[错误] 等级 %d 超出数据表范围"), CurrentLevel);
-		return false;
-	}
-
-	// 应用数据表格中的属性
-	UpgradeCost = LoadedTurretData->UpgradeCost[DataIndex];
-	Damage = LoadedTurretData->Damage[DataIndex];
-	AttackRange = LoadedTurretData->AttackRange[DataIndex];
-	AttackSpeed = LoadedTurretData->AttackSpeed[DataIndex];
-
-	// 设置炮塔网格体
-	if (LoadedTurretData->TurretMesh.IsValidIndex(DataIndex) && LoadedTurretData->TurretMesh[DataIndex] && TurretMesh)
-	{
-		TurretMesh->SetStaticMesh(LoadedTurretData->TurretMesh[DataIndex]);
-	}
-
-	// 设置 Niagara 效果
-	if (LoadedTurretData->GroundEffect.IsValidIndex(DataIndex) && LoadedTurretData->GroundEffect[DataIndex] && GroundEffectComponent)
-	{
-		GroundEffectComponent->SetAsset(LoadedTurretData->GroundEffect[DataIndex]);
-		GroundEffectComponent->Activate();
-	}
-
-	UE_LOG(LogTemp, Log, TEXT("[成功] 炮塔已从表格数据加载: %s, 等级: %d"), *TurretName.ToString(), CurrentLevel);
-	return true;
-}
-
-bool ABaseTurret::UpgradeTurret()
-{
-	if (!LoadedTurretData)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[错误] 没有加载的炮塔数据"));
-		return false;
-	}
-
-	const int32 NextLevel = CurrentLevel + 1;
-
-	if (ValidateDataTableIndex(NextLevel))
-	{
-		if (GameModeRef->GetMoney() < LoadedTurretData->UpgradeCost[NextLevel])
+		if (GameModeRef)
 		{
-			UE_LOG(LogTemp, Warning, TEXT("[警告] 金币不足无法升级"));
-			return false;
+			UE_LOG(LogTemp, Log, TEXT("[信息] 懒加载获取游戏模式引用: %s"), *GameModeRef->GetName());
 		}
-		GameModeRef->SpendMoney(LoadedTurretData->UpgradeCost[NextLevel]);
-		CurrentLevel = NextLevel;
-		return InitializeTurretFromDataTable(TurretName);
+		else
+		{
+			UE_LOG(LogTemp, Error, TEXT("[错误] 懒加载无法获取游戏模式引用"));
+		}
 	}
 	else
 	{
-		UE_LOG(LogTemp, Warning, TEXT("[警告] 已达到最大等级，无法升级"));
+		UE_LOG(LogTemp, Log, TEXT("[信息] 游戏模式引用 %s 已设置"), *GameModeRef->GetName());
+	}
+	return GameModeRef;
+}
+
+// 懒加载获取数据表管理器
+UTurretDataTableManager* ABaseTurret::GetTurretDataTableManager() const
+{
+	if (!TurretDataTableManager)
+	{
+		ATowerDefenceGameMode* Mode = GetGameModeRef();
+		if (Mode)
+		{
+			ABaseTurret* NonConstThis = const_cast<ABaseTurret*>(this);
+			NonConstThis->TurretDataTableManager = Mode->TurretDataTableManager;
+
+			if (TurretDataTableManager)
+			{
+				UE_LOG(LogTemp, Log, TEXT("[信息] 懒加载已获取数据表管理器"));
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("[错误] 懒加载无法获取数据表管理器"));
+			}
+		}
+	}
+	return TurretDataTableManager;
+}
+
+// 确保初始化完成
+bool ABaseTurret::EnsureInitialized() const
+{
+	return GetGameModeRef() && GetTurretDataTableManager();
+}
+
+// 验证关键引用
+bool ABaseTurret::ValidateCriticalRef() const
+{
+	if (!GetGameModeRef())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[错误] 游戏模式引用无效"));
 		return false;
 	}
-}
 
-void ABaseTurret::SellOut()
-{
-	if (LoadedTurretData && LoadedTurretData->SellCost.IsValidIndex(CurrentLevel) && CurrentLevel > 0)
+	if (!GetTurretDataTableManager())
 	{
-		int32 Amount = LoadedTurretData->SellCost[CurrentLevel];
-		GameModeRef->AddMoney(Amount);
-		UE_LOG(LogTemp, Log, TEXT("出售成功获得金币 %d , 当前金币 %d "), Amount, GameModeRef->GetMoney());
-		CurrentLevel = 0;
-		TurretMesh->SetStaticMesh(nullptr);
-		InitializeTurretFromDataTable(TurretName);
-	}
-}
-
-TArray<FName> ABaseTurret::GetAllRowNames(UDataTable* Data) const
-{
-	TArray<FName> RowNames;
-	if (!Data)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[错误] 数据表为空"));
-	}
-	const TMap<FName, uint8*>& RowMap = Data->GetRowMap();
-	for(const auto Row : RowMap)
-	{
-		RowNames.Add(Row.Key);
-	}
-	return RowNames;
-}
-
-bool ABaseTurret::ValidateDataTableIndex(int32 Index) const
-{
-	if (!LoadedTurretData)
-	{
-		UE_LOG(LogTemp, Error, TEXT("[错误] 没有加载的炮塔数据"));
+		UE_LOG(LogTemp, Error, TEXT("[错误] 数据表管理器无效"));
 		return false;
 	}
-		
-	return Index >= 0 &&
-		Index < LoadedTurretData->UpgradeCost.Num() &&
-		Index < LoadedTurretData->Damage.Num() &&
-		Index < LoadedTurretData->AttackRange.Num() &&
-		Index < LoadedTurretData->AttackSpeed.Num() &&
-		Index < LoadedTurretData->TurretMesh.Num() &&
-		Index < LoadedTurretData->GroundEffect.Num();
+
+	return true;
+}
+
+// 必须提供 _Implementation 函数的默认实现
+bool ABaseTurret::InitializeTurretFromDataTable_Implementation(FName NewTurretName)
+{
+	// 使用懒加载验证引用
+	if (!EnsureInitialized())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[错误] 关键引用无效，无法初始化炮塔"));
+		return false;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("ABaseTurret::InitializeTurretFromDataTable_Implementation - 基类默认实现，应该在子类中重写"));
+	return false;
+}
+
+bool ABaseTurret::UpgradeTurret_Implementation()
+{
+	// 使用懒加载验证引用
+	if (!EnsureInitialized())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[错误] 关键引用无效，无法升级炮塔"));
+		return false;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("ABaseTurret::UpgradeTurret_Implementation - 基类默认实现，应该在子类中重写"));
+	return false;
+}
+
+void ABaseTurret::SellOut_Implementation()
+{
+	// 使用懒加载验证引用
+	if (!EnsureInitialized())
+	{
+		UE_LOG(LogTemp, Error, TEXT("[错误] 关键引用无效，无法出售炮塔"));
+		return;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("ABaseTurret::SellOut_Implementation - 基类默认实现，应该在子类中重写"));
+}
+
+// 调试函数
+void ABaseTurret::DebugTurretSetup()
+{
+	UE_LOG(LogTemp, Log, TEXT("=== 炮塔调试信息 ==="));
+	UE_LOG(LogTemp, Log, TEXT("游戏模式: %s"), GetGameModeRef() ? *GetGameModeRef()->GetName() : TEXT("空"));
+	UE_LOG(LogTemp, Log, TEXT("数据表管理器: %s"), GetTurretDataTableManager() ? TEXT("有效") : TEXT("空"));
+	UE_LOG(LogTemp, Log, TEXT("炮塔类型数据表: %s"), TurretTypeDataTable ? *TurretTypeDataTable->GetName() : TEXT("空"));
+	UE_LOG(LogTemp, Log, TEXT("炮塔类型名称: %s"), *TurretTypeName.ToString());
+	UE_LOG(LogTemp, Log, TEXT("当前等级: %d"), CurrentLevel);
+	UE_LOG(LogTemp, Log, TEXT("===================="));
 }

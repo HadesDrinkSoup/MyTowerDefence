@@ -1,45 +1,22 @@
+// Fill out your copyright notice in the Description page of Project Settings.
+
 #pragma once
 
 #include "CoreMinimal.h"
 #include "Engine/DataTable.h"
 #include "NiagaraSystem.h"
 #include "NiagaraComponent.h"
+#include "Engine/StaticMesh.h"
+#include "Components/StaticMeshComponent.h"
 #include "002_GameMode/TowerDefenceGameMode.h"
+#include "003_Turret/TurretDataTableManager.h"
 #include "GameFramework/Actor.h"
 #include "BaseTurret.generated.h"
 
-USTRUCT(BlueprintType)
-struct FTurretData : public FTableRowBase
-{
-	GENERATED_BODY()
+class UTurretDataTableManager;
+struct FBaseTurretData;
 
-public:
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	int32 MaxLevel;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TArray<int32> SellCost;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TArray<int32> UpgradeCost;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TArray<float> Damage; 
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TArray<float> AttackRange;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TArray<float> AttackSpeed;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TArray<UStaticMesh*> TurretMesh;  // 使用指针类型
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	TArray<UNiagaraSystem*> GroundEffect;  // 使用指针类型
-};
-
-UCLASS()
+UCLASS(Abstract) // 标记为抽象类，不能直接实例化
 class MYTOWERDEFENCE_API ABaseTurret : public AActor
 {
 	GENERATED_BODY()
@@ -50,10 +27,20 @@ public:
 public:
 	// 炮塔属性
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TurretData")
+	FName TurretName;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TurretData")
+	int32 MaxLevel;
+
+	// 当前等级为数组索引，从0开始
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TurretData")
 	int32 CurrentLevel;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TurretData")
 	int32 UpgradeCost;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TurretData")
+	int32 SellCost;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TurretData")
 	float Damage;
@@ -70,43 +57,54 @@ public:
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	class UNiagaraComponent* GroundEffectComponent;
+
 	// 数据表引用
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TurretData")
-	class UDataTable* TurretDataTable;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TurretTypeData")
+	class UDataTable* TurretTypeDataTable;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TurretData")
-	TArray<FName> TurretsName;
-
-	// 炮塔名称（用于数据表查找）
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TurretData")
-	FName TurretName;
+	// 炮塔类型名称（用于数据表查找）
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "TurretTypeData")
+	FName TurretTypeName;
 
 protected:
-	ATowerDefenceGameMode* GameModeRef;
-
-private:
-	const FTurretData* LoadedTurretData;
+	// 核心引用 - 使用mutable以便在const方法中修改
+	mutable ATowerDefenceGameMode* GameModeRef;
+	mutable UTurretDataTableManager* TurretDataTableManager;
 
 protected:
 	virtual void BeginPlay() override;
+
+	// 延迟初始化
+	void DelayedInitialize();
+	FTimerHandle InitializeTimerHandle;
+
+	// 懒加载和验证方法
+	ATowerDefenceGameMode* GetGameModeRef() const;
+	UTurretDataTableManager* GetTurretDataTableManager() const;
+	bool EnsureInitialized() const;
+	bool ValidateCriticalRef() const;
 
 public:
 	virtual void Tick(float DeltaTime) override;
 
 public:
-	// 炮塔功能函数
-	UFUNCTION(BlueprintCallable, Category = "Turret")
+
+	// 炮塔功能函数，由子类实现
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Turret")
 	bool InitializeTurretFromDataTable(FName NewTurretName);
 
-	UFUNCTION(BlueprintCallable, Category = "Turret")
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Turret")
 	bool UpgradeTurret();
 
-	UFUNCTION(BlueprintCallable, Category = "Turret")
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Turret")
 	void SellOut();
 
-	UFUNCTION(BlueprintCallable, Category = "GetAllRowNamesFromDataTable")
-	TArray<FName> GetAllRowNames(UDataTable* Data) const;
+	// 添加默认实现声明
+	virtual bool InitializeTurretFromDataTable_Implementation(FName NewTurretName);
+	virtual bool UpgradeTurret_Implementation();
+	virtual void SellOut_Implementation();
 
-	// 辅助函数
-	bool ValidateDataTableIndex(int32 Index) const;
+	// 调试函数
+	UFUNCTION(BlueprintCallable, Category = "Turret|Debug")
+	void DebugTurretSetup();
 };

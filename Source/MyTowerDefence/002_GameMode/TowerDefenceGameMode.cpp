@@ -6,6 +6,7 @@
 ATowerDefenceGameMode::ATowerDefenceGameMode()
 {
 	Money = 100; // 初始金钱数
+	TurretDataTableManager = CreateDefaultSubobject<UTurretDataTableManager>(TEXT("TurretDataTableManager"));
 }
 
 int32 ATowerDefenceGameMode::GetMoney() const

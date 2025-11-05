@@ -4,6 +4,7 @@
 
 #include "CoreMinimal.h"
 #include "001_Enemy/BaseEnemy.h"
+#include "003_Turret/TurretDataTableManager.h"
 #include "GameFramework/GameModeBase.h"
 #include "TowerDefenceGameMode.generated.h"
 
@@ -22,6 +23,9 @@ public:
 	// 已生成敌人的数组，存储所有生成的敌人实例
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "SpawnedEnemies")
 	TArray<ABaseEnemy*> SpawnedEnemies;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Turret")
+	UTurretDataTableManager* TurretDataTableManager;
 
 private:
 	int32 Money;
